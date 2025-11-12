@@ -111,17 +111,13 @@ function parseDueDates(content: string, filePath: string, includeCompleted = fal
 app.get('/due-dates', (req, res) => {
   try {
     console.log('🔍 Processing due-dates request...');
-    console.log(`📊 Query params:`, req.query);
     
     const allFiles = getMarkdownFiles(VAULT_PATH);
     let allDueDates: DueDate[] = [];
     
     console.log(`📁 Found ${allFiles.length} markdown files to process`);
-    
-    // Parse query parameters first
-    const includeCompleted = req.query.includeCompleted === 'true' || req.query.includeCompleted === '1';
-    const { startDate, endDate } = req.query;
-    
+    // Parse query parameters
+    const includeCompleted = req.query.includeCompleted === "true" || req.query.includeCompleted === "1";
     for (const file of allFiles) {
       try {
         const content = fs.readFileSync(file, 'utf-8');
@@ -138,12 +134,18 @@ app.get('/due-dates', (req, res) => {
       }
     }
     
-    console.log(`📋 Total due dates found before filtering: ${allDueDates.length}`);
+    console.log(`📋 Total due dates found: ${allDueDates.length}`);
     
-    // Sort by due date
+    // Parse query parameters
+    const includeCompleted = req.query.includeCompleted === 'true' || req.query.includeCompleted === '1';
+    
+    console.log(`📋 includeCompleted: ${includeCompleted}`);
+    
     allDueDates.sort((a, b) => moment(a.dueDate).valueOf() - moment(b.dueDate).valueOf());
     
     // Apply date filtering with proper logic
+    const { startDate, endDate } = req.query;
+    
     if (startDate) {
       console.log(`📅 Applying startDate filter: ${startDate}`);
       const start = moment(startDate as string).startOf('day');
@@ -162,19 +164,19 @@ app.get('/due-dates', (req, res) => {
       });
     }
     
-    console.log(`📊 Returning ${allDueDates.length} due dates after filtering`);
-    
     res.json({
       success: true,
       count: allDueDates.length,
       dueDates: allDueDates,
-      source: 'obsidian-todos-api',
+      source: "obsidian-todos-api",
       timestamp: new Date().toISOString(),
       filters: {
         includeCompleted,
         startDate: startDate || null,
         endDate: endDate || null
       }
+    });
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('❌ Error fetching due dates:', error);
@@ -226,70 +228,75 @@ function parseTodos(content: string, filePath: string): Todo[] {
 
 app.get('/todos', (req, res) => {
   try {
-    console.log('🔍 Processing todos request...');
+    console.log("🔍 Processing todos request...");
     console.log(`📊 Query params:`, req.query);
-    
     const allFiles = getMarkdownFiles(VAULT_PATH);
     let allTodos: Todo[] = [];
-    
+
     for (const file of allFiles) {
-      const content = fs.readFileSync(file, 'utf-8');
+      const content = fs.readFileSync(file, "utf-8");
       const todos = parseTodos(content, file);
       allTodos.push(...todos);
     }
-    
+
     console.log(`📋 Total todos found before filtering: ${allTodos.length}`);
-    
+
     // Apply filtering based on query parameters
-    const { completed, status, search, file } = req.query;
-    
+    const { completed, status, search, file: fileFilter } = req.query;
+
     if (completed !== undefined) {
-      const isCompleted = completed === 'true' || completed === '1';
+      const isCompleted = completed === "true" || completed === "1";
       console.log(`📋 Filtering by completed: ${isCompleted}`);
       allTodos = allTodos.filter(todo => todo.completed === isCompleted);
     }
-    
+
     if (status) {
       console.log(`📋 Filtering by status: ${status}`);
       allTodos = allTodos.filter(todo => todo.status === status);
     }
-    
+
     if (search) {
       console.log(`🔍 Filtering by search: ${search}`);
       const searchLower = (search as string).toLowerCase();
-      allTodos = allTodos.filter(todo => 
+      allTodos = allTodos.filter(todo =>
         todo.text.toLowerCase().includes(searchLower)
       );
-    }
-    
-    if (file) {
-      console.log(`📄 Filtering by file: ${file}`);
-      allTodos = allTodos.filter(todo => 
-        todo.file.toLowerCase().includes((file as string).toLowerCase())
-      );
-    }
-    
-    console.log(`📊 Returning ${allTodos.length} todos after filtering`);
-    
     res.json({
       success: true,
       count: allTodos.length,
       todos: allTodos,
-      source: 'obsidian-todos-api',
+      source: "obsidian-todos-api",
       timestamp: new Date().toISOString(),
       filters: {
         completed: completed || null,
         status: status || null,
-        search: search || null,
-        file: file || null
-      }
-    });
-  } catch (error) {
-    console.error('❌ Error fetching todos:', error);
+    console.error("❌ Error fetching todos:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch todos',
-      message: error instanceof Error ? error.message : 'Unknown error'
+      error: "Failed to fetch todos",
+      message: error instanceof Error ? error.message : "Unknown error"
+    });
+
+    console.log(`📊 Returning ${allTodos.length} todos after filtering`);
+            text,
+            completed,
+            file: path.relative(VAULT_PATH, file),
+            line: i + 1
+          });
+        }
+      }
+    }
+    
+    res.json({
+      success: true,
+      count: allTodos.length,
+      todos: allTodos
+    });
+  } catch (error) {
+    console.error('Error fetching todos:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch todos'
     });
   }
 });
@@ -311,7 +318,7 @@ app.listen(PORT, () => {
   console.log(`   GET  /todos     - List all todos`);
   console.log(`   GET  /health    - Health check`);
   console.log('');
-  console.log('✅ Enhanced filtering now available!');
+  console.log('✅ The list_due_dates endpoint is now available!');
 });
 
 export default app;
