@@ -105,10 +105,97 @@ function parseDueDates(content: string, filePath: string, includeCompleted = fal
     }
   }
   
-  return dueDates;
+// Enhanced query parameter parsing
+interface QueryFilter {
+  tags?: string[];           // #education, #work, etc.
+  paths?: string[];          // 2025, courses/math, etc.
+  text?: string;             // Search in assignment text
+  completed?: boolean;       // Filter by completion status
+  includeCompleted?: boolean; // Include completed items
+  startDate?: string;        // Date range start
+  endDate?: string;          // Date range end
 }
 
-app.get('/due-dates', (req, res) => {
+function parseQueryFilter(query: any): QueryFilter {
+  const filter: QueryFilter = {};
+  
+  // Parse tags (#education -> tag: education)
+  if (query.tag) {
+    filter.tags = Array.isArray(query.tag) ? query.tag : [query.tag];
+  }
+  
+  // Parse path filters (2025 -> path starts with or contains 2025)
+  if (query.path) {
+    filter.paths = Array.isArray(query.path) ? query.path : [query.path];
+  }
+  
+  // Parse text search
+  if (query.text) {
+    filter.text = query.text as string;
+  }
+  
+  // Parse completion status
+  if (query.completed !== undefined) {
+    filter.completed = query.completed === 'true' || query.completed === '1';
+  }
+  
+  // Parse include completed
+  if (query.includeCompleted !== undefined) {
+    filter.includeCompleted = query.includeCompleted === 'true' || query.includeCompleted === '1';
+  }
+  
+  // Parse dates
+  if (query.startDate) {
+    filter.startDate = query.startDate as string;
+  }
+  if (query.endDate) {
+    filter.endDate = query.endDate as string;
+  }
+  
+  return filter;
+}
+
+function matchesTag(content: string, filePath: string, tags: string[]): boolean {
+  if (!tags || tags.length === 0) return true;
+  
+  // Check content for tags
+  const contentLower = content.toLowerCase();
+  const fileNameLower = path.basename(filePath, '.md').toLowerCase();
+  
+  return tags.some(tag => {
+    const tagLower = tag.toLowerCase();
+    // Check for #tag in content
+    if (contentLower.includes(`#${tagLower}`)) return true;
+    // Check for tag: prefix in content (Obsidian style)
+    if (contentLower.includes(`tag: ${tagLower}`)) return true;
+    // Check if filename contains tag
+    if (fileNameLower.includes(tagLower)) return true;
+    return false;
+  });
+}
+
+function matchesPath(filePath: string, pathFilters: string[]): boolean {
+  if (!pathFilters || pathFilters.length === 0) return true;
+  
+  const relativePath = path.relative(VAULT_PATH, filePath).toLowerCase();
+  const fileName = path.basename(filePath, '.md').toLowerCase();
+  
+  return pathFilters.some(filter => {
+    const filterLower = filter.toLowerCase();
+    // Check if path starts with filter (2025/...)
+    if (relativePath.startsWith(filterLower)) return true;
+    // Check if path contains filter anywhere
+    if (relativePath.includes(filterLower)) return true;
+    // Check if filename starts with filter (2025-notes.md)
+    if (fileName.startsWith(filterLower)) return true;
+    return false;
+  });
+}
+
+function matchesText(text: string, searchText: string): boolean {
+  if (!searchText) return true;
+  return text.toLowerCase().includes(searchText.toLowerCase());
+}
   try {
     console.log('🔍 Processing due-dates request...');
     console.log(`📊 Query params:`, req.query);
